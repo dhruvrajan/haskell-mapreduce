@@ -33,3 +33,7 @@ mapFunction document = map (\w -> (w, 1)) $ words document
 reduceFunction :: ReduceFunction [] String Int Int
 reduceFunction word counts = [sum counts]
 
+wordCounts = mapReduce mapFunction reduceFunction
+
+wordCounts ["the dog is running in the yard", "the dog hates the cat", "the cat runs around the yard"]
+
