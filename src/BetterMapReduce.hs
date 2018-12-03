@@ -33,3 +33,22 @@ reduceFunction word counts = [sum counts]
 wordCounts = mapReduce mapFunction reduceFunction
 
 counts = wordCounts ["the dog is running in the yard", "the dog hates the cat", "the cat runs around the yard"]
+
+
+-- Distributed Grep
+grepMap :: (String -> Bool) -> MapFunction (String, String) String (Int, String)
+grepMap matches (title, document) = filter (matches . snd . snd) $ zip (repeat title) $ zip [1..] (lines document)
+
+grepReduce :: ReduceFunction [] String (Int, String) (Int, String)
+grepReduce title = id
+
+grep matches = mapReduce (grepMap matches) grepReduce
+
+-- Inverted Index
+invertedIndexMap :: MapFunction (String, String) String String
+invertedIndexMap (title, document) = zip (words document) (repeat title)
+
+invertedIndexReduce :: ReduceFunction [] String String String
+invertedIndexReduce word = id
+
+invertedIndex = mapReduce invertedIndexMap invertedIndexReduce
