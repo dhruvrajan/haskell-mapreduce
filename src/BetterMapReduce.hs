@@ -1,30 +1,27 @@
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
+
 import qualified Data.Map.Strict as Map
+import qualified Data.List as List
+import Data.Ord (comparing)
 
+type MapFunction a k v = Ord k => a -> [(k, v)]
+type ShuffleFunction f k v = (Ord k, Foldable f) =>  [(k, v)] -> [(k, f v)]
+type ReduceFunction f k v v' = (Ord k, Foldable f) => k -> f v -> f v'
+type MapReduceFunction a k v f v'= (Ord k, Foldable f) => MapFunction a k v -> ReduceFunction f k v v'-> [a] -> [(k, f v')]
 
-type MapFunction a k v = a -> [(k, v)]
-type ShuffleFunction f k v = [(k, v)] -> [(k, f v)]
-type ReduceFunction f k v v' = k -> f v -> f v'
-type MapReduceFunction a k v f v'= MapFunction a k v -> ReduceFunction f k v v'-> [a] -> [(k, f v')]
+groupBy :: (a -> a -> Bool) -> (a -> b -> b) -> b -> [a] -> [b]
+groupBy _ _ _ [] = []
+groupBy eq group d (x:xs) = group x ys : groupBy eq group d zs
+  where
+    (ys', zs) = List.span (eq x) xs
+    ys = foldr group d ys'
 
-_insertWith :: Ord k => (b -> a -> a) -> k -> b -> a -> Map.Map k a -> Map.Map k a
-_insertWith f k b d mp =
-  if not $ Map.member k mp
-  then Map.insert k (f b d) mp
-  else Map.adjust (f b) k mp
-
-_shuffleList :: (Ord k) =>  [(k, v)] -> Map.Map k [v] -> Map.Map k [v]
-_shuffleList []  mp = mp
-_shuffleList ((k, v):entries) mp = _shuffleList entries $ _insertWith (:) k v [] mp
-
-shuffleList :: (Ord k) => ShuffleFunction [] k v
-shuffleList entries = Map.toList $ _shuffleList entries Map.empty
-
-flatten :: [[a]] -> [a]         
-flatten xs = (\z n -> foldr (\x y -> foldr z y x) n xs) (:) []  
+shuffle :: (Ord ) k => ShuffleFunction [] k v
+shuffle ((ek,ev):es) = groupBy (\x y -> fst x == fst y) (\x y -> (fst x, snd x : snd y)) (ek, []) $ List.sortBy (comparing fst) ((ek, ev):es)
 
 mapReduce :: (Ord k) =>  MapReduceFunction a k v [] v'
-mapReduce mapFunction reduceFunction records = map (\(k, v) -> (k, reduceFunction k v)) $ shuffleList $ flatten $ map mapFunction records
-
+mapReduce mapFunction reduceFunction records = map (\(k, v) -> (k, reduceFunction k v)) $ shuffle $ records >>= mapFunction
 
 -- Word Counting
 mapFunction :: MapFunction String String Int
@@ -36,4 +33,3 @@ reduceFunction word counts = [sum counts]
 wordCounts = mapReduce mapFunction reduceFunction
 
 counts = wordCounts ["the dog is running in the yard", "the dog hates the cat", "the cat runs around the yard"]
-
